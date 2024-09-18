@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface TravelCourseRepository extends MongoRepository<TravelCourse, String> {
 
-    Optional<TravelCourse> findByCourseName (String courseName);
+    Optional<TravelCourse> findByUserIdAndCourseName (String UserID, String courseName);
 
     boolean findByStartDateAndEndDate(LocalDate startDate, LocalDate endDate);
 
