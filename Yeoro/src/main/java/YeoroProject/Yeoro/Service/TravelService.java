@@ -7,7 +7,9 @@ import YeoroProject.Yeoro.Repository.TravelSpotRepository;
 import YeoroProject.Yeoro.Repository.UserRepository;
 import YeoroProject.Yeoro.dto.TravelCourseRequest;
 import YeoroProject.Yeoro.dto.TravelDetailsRequest;
+import YeoroProject.Yeoro.dto.TravelSendRequest;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -28,29 +30,30 @@ public class TravelService {
         this.userService = userService;
     }
 
+
     /**
      * 새로운 여행 코스를 생성하거나 업데이트 최근 업데이트 날짜와 유저로 된 코스 존재 시 코스 수정 기능 최근 업데이트 날짜 존재하지 않으면 새로운 코스 저장
      *
      * @param travelCourseRequest 여행 코스를 저장 및 업데이트 하기 위한 DTO
      * @return 저장된 코스의 데이터가 전부 반홥됩니다.
      */
-
-    // 여행지 중복 확인해야함. (코스 아이디로 확인)
     public String createTravelCourse(TravelCourseRequest travelCourseRequest) {
 
         // 유저 정보 학인
         String userID = userService.findById(travelCourseRequest.getUserEmail());
 
-        // 동일한 코스 이름과 날짜를 가진 코스가 있는지 확인 (updateDate 포함)
-        String[] courseDate = {travelCourseRequest.getStartDate().toString(), travelCourseRequest.getEndDate().toString()};
-        String existingCourseID = findByCourseID(userID, travelCourseRequest.getCourseName(), courseDate, travelCourseRequest.getUpdateDate());
+        // 기존 코스 확인
+        Optional<String> existingCourseIdOptional = findCourseId(userID,
+            travelCourseRequest.getCourseName(),
+            travelCourseRequest.getStartDate(),
+            travelCourseRequest.getEndDate(),
+            travelCourseRequest.getUpdateDate());
 
-        if (!existingCourseID.equals("해당하는 코스가 존재하지 않습니다.")) {
-            // 동일한 코스가 존재할 경우 업데이트 처리
-            Optional<TravelCourse> existingCourseOptional = travelCourseRepository.findById(existingCourseID);
+        if (existingCourseIdOptional.isPresent()) {
+            // 기존 코스가 있을 경우 업데이트
+            Optional<TravelCourse> existingCourseOptional = travelCourseRepository.findById(existingCourseIdOptional.get());
             if (existingCourseOptional.isPresent()) {
-                TravelCourse existingCourse = existingCourseOptional.get();
-                return saveOrUpdateCourse(existingCourse, travelCourseRequest);
+                return saveOrUpdateCourse(existingCourseOptional.get(), travelCourseRequest);
             }
         }
 
@@ -60,10 +63,109 @@ public class TravelService {
         return saveOrUpdateCourse(newCourse, travelCourseRequest);
     }
 
+
+    /**
+     * 세부 코스를 저장하는 함수
+     *
+     * @param travelDetailsRequest 세부 코스 저장을 위한 DTO
+     * @return 저장된 세부 코스의 데이터
+     */
+    public String createTravelSpotDetails(TravelDetailsRequest travelDetailsRequest) {
+        // 유저 정보 확인
+        String userId = userService.findById(travelDetailsRequest.getUserEmail());
+
+        // 기존 코스 확인
+        Optional<String> existingCourseIdOptional = findCourseId(userId,
+            travelDetailsRequest.getCourseName(),
+            travelDetailsRequest.getStartDate(),
+            travelDetailsRequest.getEndDate(),
+            travelDetailsRequest.getUpdateDate());
+
+        if (existingCourseIdOptional.isPresent()) {
+            // 해당 코스 ID와 여행지 이름으로 기존 여행지 확인
+            Optional<TravelSpot> existingSpotOptional = travelSpotRepository.findByCourseIdAndTravelSpotName(existingCourseIdOptional.get(), travelDetailsRequest.getTravelSpotName());
+
+            if (existingSpotOptional.isPresent()) {
+                // 기존 여행지가 있을 경우 업데이트
+                return saveOrUpdateTravelSpot(existingSpotOptional.get(), travelDetailsRequest, existingCourseIdOptional.get());
+            }
+
+            // 새로운 세부 여행지 생성 및 저장
+            TravelSpot newSpot = new TravelSpot();
+            newSpot.setUserId(userId);
+            return saveOrUpdateTravelSpot(newSpot, travelDetailsRequest, existingCourseIdOptional.get());
+
+        } else {
+            return "해당하는 코스가 존재하지 않습니다. 먼저 코스를 생성해주세요.";
+        }
+    }
+
+
+    /**
+     * 유저의 이메일을 기반으로 해당 유저가 제작한 여행 코스와 세부 정보를 조회하여 반환하는 메소드
+     * @param userEmail 사용자 이메일
+     * @return TravelSendRequest 객체 리스트
+     */
+    public List<TravelSendRequest> getAllTravelCourses(String userEmail) {
+        // 사용자 ID 조회
+        String userId = userService.findById(userEmail);
+
+        // 사용자 ID로 여행 코스 조회
+        List<TravelCourse> travelCourses = travelCourseRepository.findByUserId(userId);
+
+        // 결과 저장 리스트 초기화
+        List<TravelSendRequest> travelSendRequests = new ArrayList<>();
+
+        // 각 코스에 대한 세부 여행지 정보 조회
+       for(TravelCourse travelCourse : travelCourses) {
+           TravelSendRequest response = new TravelSendRequest();
+           response.setTravelCourse(travelCourse);
+
+           // 코스 ID로 세부 코스 조회
+           List<TravelSpot> travelSpots = travelSpotRepository.findByCourseId(travelCourse.getId());
+           response.setTravelSpots(travelSpots);
+
+           travelSendRequests.add(response);
+       }
+
+       return travelSendRequests;
+    }
+
+
+
+    /**
+     * 유저 ID, 코스 이름, 날짜로 코스 ID를 확인 및 반환하는 메소드
+     *
+     * @param userId 사용자 ID
+     * @param courseName 코스 이름
+     * @param startDate 코스 시작 날짜
+     * @param endDate 코스 종료 날짜
+     * @param updateDate 코스 업데이트 날짜 (Optional)
+     * @return Optional의 코스 ID값
+     */
+    public Optional<String> findCourseId(String userId, String courseName, LocalDate startDate, LocalDate endDate, LocalDate updateDate) {
+
+        // 유저 ID, 코스 이름으로 코스 찾기
+        Optional<TravelCourse> travelCourse = travelCourseRepository.findByUserIdAndCourseName(userId, courseName);
+
+        if (travelCourse.isPresent()) {
+            TravelCourse course = travelCourse.get();
+
+            // 코스 날짜 확인
+            if (course.getStartDate().equals(startDate) && course.getEndDate().equals(endDate)) {
+                if ((updateDate == null && course.getUpdateDate() == null) ||
+                    (updateDate != null && updateDate.equals(course.getUpdateDate()))) {
+                    return Optional.of(course.getId());
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * TravelCourse 객체를 저장 또는 업데이트하는 공통 함수
      *
-     * @param travelCourse 및 업데이트 할 TravelCourse 객체
+     * @param travelCourse 생성 및 업데이트 할 TravelCourse 객체
      * @param travelCourseRequest DTO로 받은 여행 코스 정보
      * @return 저장 또는 업데이트 결과 메시지
      */
@@ -81,83 +183,30 @@ public class TravelService {
         return isNew ? "코스가 성공적으로 저장되었습니다." : "코스가 성공적으로 업데이트되었습니다.";
     }
 
+
     /**
-     * 세부 코스를 저장하는 함수
+     * TravelSpot 객체를 저장 또는 업데이트하는 공통 함수
      *
-     * @param travelDetailsRequest 세부 코스 저장을 위한 DTO
-     * @return 저장된 세부 코스의 데이터
+     * @param travelSpot 생성 및 업데이트 할 TravelSpot 객체
+     * @param travelDetailsRequest DTO로 받은 세부 코스 정보
+     * @param courseId 코스 ID
+     * @return 저장 또는 업데이트 결과 메시지
      */
-    public String createTravelSpotDetails(TravelDetailsRequest travelDetailsRequest) {
-        // 유저 정보 확인
-        String userID = userService.findById(travelDetailsRequest.getUserEmail());
+    private String saveOrUpdateTravelSpot(TravelSpot travelSpot, TravelDetailsRequest travelDetailsRequest, String courseId) {
+        boolean isNew = travelSpot.getId() == null;
 
-        // 코스 존재 여부 확인 (코스 이름, 날짜 및 업데이트 날짜 기반으로)
-        String[] courseDate = travelDetailsRequest.getTravelDate().toArray(new String[0]);
-        String existingCourseID = findByCourseID(userID, travelDetailsRequest.getCourseName(), courseDate, travelDetailsRequest.getUpdateDate());
-
-        if (existingCourseID.equals("해당하는 코스가 존재하지 않습니다.")) {
-            return "해당하는 코스가 존재하지 않습니다. 먼저 코스를 생성해주세요.";
-        }
-
-        // 여행지 중복 확인
-        Optional<TravelSpot> existingSpot = travelSpotRepository.findByCourseIdAndTravelSpotName(existingCourseID, travelDetailsRequest.getTravelSpotName());
-        if (existingSpot.isPresent()) {
-            return "해당하는 여행지는 이미 존재합니다.";
-        }
-
-        // 세부 코스 저장
-        TravelSpot travelSpot = new TravelSpot();
-        travelSpot.setCourseId(existingCourseID);
-        travelSpot.setUserId(userID);
+        // 여행지 정보 설정
+        travelSpot.setCourseId(courseId);
+        travelSpot.setUserId(travelDetailsRequest.getUserEmail());  // userId 설정
         travelSpot.setTravelSpotName(travelDetailsRequest.getTravelSpotName());
         travelSpot.setBudget(travelDetailsRequest.getBudget());
         travelSpot.setFood(travelDetailsRequest.getFood());
         travelSpot.setPublicTransport(travelDetailsRequest.getPublicTransport());
         travelSpot.setMemo(travelDetailsRequest.getMemo());
 
-        // 세부 코스 저장
+        // 저장 또는 업데이트
         travelSpotRepository.save(travelSpot);
-        return "세부 코스가 성공적으로 저장되었습니다.";
-    }
 
-    /**
-     * 코스가 존재하는지의 여부를 확인 및 courseID 반환
-     *
-     * @param courseName 부모에 해당하는 코스 이름
-     * @param courseDate 코스의 전체 날짜 [20XX-XX-XX, 20XX-XX-XX]
-     * @return 코스 ID값을 반환합니다.
-     */
-    public String findByCourseID(String userID, String courseName, String[] courseDate, String updateDate) {
-
-        // courseDate 배열이 null이거나 비어있는지 확인
-        if (courseDate == null || courseDate.length == 0) {
-            throw new RuntimeException("여행 날짜가 제공되지 않았습니다.");
-        }
-
-        // DTO의 날짜 배열 첫 번째 값과 마지막 값
-        List<String> travelDate = Arrays.stream(courseDate).toList();
-        if (travelDate.isEmpty()) {
-            throw new RuntimeException("여행 날짜가 제공되지 않았습니다.");
-        }
-
-        LocalDate dtoStartDate = LocalDate.parse(courseDate[0]);
-        LocalDate dtoEndDate = LocalDate.parse(courseDate[1]);
-
-        // 유저 ID, 코스 이름으로 코스 찾기
-        Optional<TravelCourse> travelCourse = travelCourseRepository.findByUserIdAndCourseName(
-            userID, courseName);
-
-        if (travelCourse.isPresent()) {
-            TravelCourse course = travelCourse.get();
-
-            // 코스 날짜 확인
-            if (course.getStartDate().equals(dtoStartDate) && course.getEndDate().equals(dtoEndDate)) {
-                // updateDate가 null이 아니거나 course.getUpdateDate()가 null이 아닐 때 비교
-                if ((updateDate == null && course.getUpdateDate() == null) || (updateDate != null && updateDate.equals(course.getUpdateDate()))) {
-                    return course.getId();
-                }
-            }
-        }
-        return "해당하는 코스가 존재하지 않습니다.";
+        return isNew ? "세부 코스가 성공적으로 저장되었습니다." : "세부 코스가 성공적으로 업데이트되었습니다.";
     }
 }
