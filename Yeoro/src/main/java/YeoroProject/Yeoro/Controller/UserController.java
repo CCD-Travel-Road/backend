@@ -7,6 +7,7 @@ import YeoroProject.Yeoro.dto.ResisterRequest;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/pubilic/users")
+@RequestMapping("/api/public/users")
 public class UserController {
 
     private final UserService userService;
@@ -35,18 +36,21 @@ public class UserController {
      * @return  로그인 성공 여부
      */
     @PostMapping("/create")
+    @CrossOrigin(origins = "http://localhost:3000")
     public ResponseEntity<String> createUser(@RequestBody ResisterRequest resisterRequest) {
         String response = userService.addUser(resisterRequest);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
+    @CrossOrigin(origins = "http://localhost:3000")
     public ResponseEntity<String> loginUser(@RequestBody LoginRequest loginRequest) {
         String response = userService.authenticateUser(loginRequest.getEmail(), loginRequest.getPassword());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/checkEmail")
+    @CrossOrigin(origins = "http://localhost:3000")
     public ResponseEntity<String> checkEmail(@RequestParam String email) {
         String response = userService.checkUserEmail(email);
         return ResponseEntity.ok(response);

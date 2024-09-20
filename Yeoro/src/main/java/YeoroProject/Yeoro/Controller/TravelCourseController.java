@@ -1,6 +1,5 @@
 package YeoroProject.Yeoro.Controller;
 
-import YeoroProject.Yeoro.Model.TravelCourse;
 import YeoroProject.Yeoro.Service.TravelService;
 import YeoroProject.Yeoro.dto.TravelCourseRequest;
 import YeoroProject.Yeoro.dto.TravelDetailsRequest;
@@ -10,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/public/travel")
+@CrossOrigin(origins = "http://localhost:3000")
 public class TravelCourseController {
 
     private static final Logger logger = LoggerFactory.getLogger(TravelCourseController.class); // 클래스 수준의 로거 변수
