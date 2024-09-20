@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/travel")
+@RequestMapping("/api/public/travel")
 public class TravelCourseController {
 
     private static final Logger logger = LoggerFactory.getLogger(TravelCourseController.class); // 클래스 수준의 로거 변수
